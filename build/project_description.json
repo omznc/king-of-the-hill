@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "king-of-the-hill",
-    "project_version":    "1",
+    "project_version":    "dfdf554-dirty",
     "project_path":       "A:/personal/king-of-the-hill",
     "idf_path":           "C:/Users/omar/esp/v5.4.1/esp-idf",
     "build_dir":          "A:/personal/king-of-the-hill/build",
@@ -1210,7 +1210,7 @@
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "file": "A:/personal/king-of-the-hill/build/esp-idf/main/libmain.a",
-            "sources": [ "A:/personal/king-of-the-hill/main/hello_world_main.c", "A:/personal/king-of-the-hill/main/led_strip_encoder.c" ],
+            "sources": [ "A:/personal/king-of-the-hill/main/main.c", "A:/personal/king-of-the-hill/main/led_strip_encoder.c" ],
             "include_dirs": [ "." ]
         },
         "mbedtls": {
