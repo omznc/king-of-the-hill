@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+A:/personal/king-of-the-hill/build/CMakeFiles/bootloader
+A:/personal/king-of-the-hill/build/CMakeFiles/bootloader.rule
+A:/personal/king-of-the-hill/build/CMakeFiles/bootloader-complete.rule
+A:/personal/king-of-the-hill/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+A:/personal/king-of-the-hill/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+A:/personal/king-of-the-hill/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+A:/personal/king-of-the-hill/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+A:/personal/king-of-the-hill/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+A:/personal/king-of-the-hill/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+A:/personal/king-of-the-hill/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

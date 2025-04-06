@@ -1,0 +1,2 @@
+source A:/personal/king-of-the-hill/build/bootloader/gdbinit/symbols
+source A:/personal/king-of-the-hill/build/bootloader/gdbinit/connect
