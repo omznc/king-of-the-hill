@@ -2,3 +2,5 @@
 
 I'd write up something detailed here but I don't feel like it. 
 It's a hardware project. Yeah.
+
+<image src="/pcb.png"/>
