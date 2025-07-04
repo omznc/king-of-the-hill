@@ -16,20 +16,20 @@
 #include "nvs_flash.h"
 #include "freertos/queue.h"
 
-// Constants
+// Konstante
 #define LEFT_BUTTON_PIN 47
 #define RIGHT_BUTTON_PIN 21
 #define BUZZER_PIN 46
 #define LED_STRIP_PIN 3
-#define DISPLAY_SDA_PIN 48 // Display data pin
-#define DISPLAY_SCL_PIN 45 // Display clock pin
+#define DISPLAY_SDA_PIN 48 // Pin za podatke displeja
+#define DISPLAY_SCL_PIN 45 // Pin za sat displeja
 
 #define FONT_HEIGHT 11
 #define FONT_SPACING 1
 #define DISPLAY_WIDTH 128
 #define DISPLAY_HEIGHT 64
 
-#define RMT_LED_STRIP_RESOLUTION_HZ 10000000 // 10MHz resolution
+#define RMT_LED_STRIP_RESOLUTION_HZ 10000000 // 10MHz rezolucija
 #define RMT_LED_STRIP_GPIO_NUM 3
 #define NUMBER_OF_LEDS 40
 
@@ -44,11 +44,11 @@
 
 #define DEVICE_NAME "omznc-koth"
 
-// Define a queue for sending messages to the network task
+// Red za slanje poruka mrežnom zadatku
 #define QUEUE_SIZE 10
 static QueueHandle_t network_queue;
 
-// Enums
+// Enumeracije
 typedef enum
 {
     GAME_OFF,
@@ -70,21 +70,21 @@ typedef enum
     BUZZER_FINISHED
 } BuzzerState;
 
-// Global Variables
+// Globalne varijable
 static BuzzerState buzzer_state = BUZZER_OFF;
 static GameState game_state = GAME_OFF;
 static TeamColor team_color = NONE;
-static const int game_time_seconds = 900; // 15 minutes
+static const int game_time_seconds = 900; // 15 minuta
 static int current_game_time = 0;
 static esp_lcd_panel_handle_t display_panel = NULL;
 static uint8_t led_strip_pixels[NUMBER_OF_LEDS * 4];
 static bool end_game_beep_done = false;
 static const char *TAG = "king-of-the-hill";
 
-// External reference to the font data
+// Eksterna referenca na podatke fonta
 extern const unsigned short Arcadepix9x11[];
 
-// Structs
+// Strukture
 typedef struct LedParams
 {
     rmt_encoder_handle_t *led_encoder;
@@ -108,28 +108,28 @@ bool check_wifi_status()
     return false;
 }
 
-// Helper function to get character width from ArcadePix font
+// Pomoćna funkcija za dobijanje širine karaktera iz ArcadePix fonta
 uint8_t get_char_width(char c)
 {
     if (c < 32 || c > 127)
-        return 0; // Only handle printable ASCII
+        return 0; // Radi samo sa ASCII znakovima koji se mogu ispisati
 
-    // The first element in each character's data is its width
+    // Prvi element u podacima svakog karaktera je njegova širina
     int char_index = c - 32;
     int data_index = 0;
 
-    // Calculate the starting point for the character in the font array
+    // Izračunaj početnu tačku za karakter u nizu fonta
     for (int i = 0; i < char_index; i++)
     {
-        // Each character uses (width + 1) * 19 bytes in the array
+        // Svaki karakter koristi 19 bajtova u nizu
         data_index += 19;
     }
 
-    // Return the width of the requested character
+    // Vrati širinu zahtijevanog karaktera
     return Arcadepix9x11[data_index];
 }
 
-// Helper function to measure text width
+// Pomoćna funkcija za mjerenje širine teksta
 uint16_t measure_text(const char *text)
 {
     uint16_t width = 0;
@@ -140,34 +140,34 @@ uint16_t measure_text(const char *text)
         text++;
     }
 
-    // Remove the last spacing if there was at least one character
+    // Ukloni poslednji razmak ako je postojao barem jedan karakter
     if (width > 0)
         width -= FONT_SPACING;
 
     return width;
 }
 
-// Helper function to draw a single character from ArcadePix font
+// Pomoćna funkcija za crtanje jednog karaktera iz ArcadePix fonta
 void draw_char(uint8_t *bitmap, int x, int y, char c)
 {
     if (c < 32 || c > 127)
-        return; // Only handle printable ASCII
+        return; // Radi samo sa ASCII znakovima koji se mogu ispisati
 
-    // Find character in font data
+    // Pronađi karakter u podacima fonta
     int char_index = c - 32;
     int data_index = 0;
 
-    // Find the starting index for the character in the font array
+    // Pronađi početni indeks za karakter u nizu fonta
     for (int i = 0; i < char_index; i++)
     {
-        data_index += 19; // Each char uses 19 bytes in the array
+        data_index += 19; // Svaki karakter koristi 19 bajtova u nizu
     }
 
-    // Get the width of the character
+    // Dobij širinu karaktera
     uint8_t width = Arcadepix9x11[data_index];
-    data_index++; // Move to the first data byte after the width
+    data_index++; // Pomjeri se na prvi bajt podataka nakon širine
 
-    // Draw the character bitmap
+    // Nacrtaj bitmap karaktera
     for (int col = 0; col < width; col++)
     {
         for (int byte_row = 0; byte_row < ((FONT_HEIGHT + 7) / 8); byte_row++)
@@ -178,17 +178,17 @@ void draw_char(uint8_t *bitmap, int x, int y, char c)
             {
                 if (byte_value & (1 << bit))
                 {
-                    // Set pixel at position (x+col, y+byte_row*8+bit)
+                    // Postavi piksel na poziciju (x+col, y+byte_row*8+bit)
                     int pixel_x = x + col;
                     int pixel_y = y + byte_row * 8 + bit;
 
                     if (pixel_x >= 0 && pixel_x < DISPLAY_WIDTH && pixel_y >= 0 && pixel_y < DISPLAY_HEIGHT)
                     {
-                        // Calculate bit position in the bitmap
+                        // Izračunaj poziciju bita u bitmapu
                         int byte_idx = (pixel_y / 8) * DISPLAY_WIDTH + pixel_x;
                         int bit_position = pixel_y % 8;
 
-                        // Set the bit in the bitmap
+                        // Postavi bit u bitmapu
                         bitmap[byte_idx] |= (1 << bit_position);
                     }
                 }
@@ -197,7 +197,7 @@ void draw_char(uint8_t *bitmap, int x, int y, char c)
     }
 }
 
-// Helper function to draw a string using ArcadePix font
+// Pomoćna funkcija za crtanje stringa koristeći ArcadePix font
 void draw_string(uint8_t *bitmap, int x, int y, const char *str)
 {
     int pos_x = x;
@@ -210,10 +210,10 @@ void draw_string(uint8_t *bitmap, int x, int y, const char *str)
     }
 }
 
-// Forward declaration for display task
+// Deklaracija za zadatak displeja
 void display_task(void *arg);
 
-// Function to send game data to NTFY endpoint
+// Funkcija za slanje podataka igre na NTFY endpoint
 void send_game_data(const char *message)
 {
     esp_http_client_config_t config = {
@@ -226,7 +226,7 @@ void send_game_data(const char *message)
     esp_http_client_set_post_field(client, message, strlen(message));
 
     const int max_retries = 3;
-    const int retry_delay_ms = 2000; // 2 seconds
+    const int retry_delay_ms = 2000; // 2 sekunde
     int attempt = 0;
     esp_err_t err;
 
@@ -254,7 +254,7 @@ void send_game_data(const char *message)
     esp_http_client_cleanup(client);
 }
 
-// Update the network task to handle formatted messages
+// Ažuriraj network_task da handleuje formatiranim porukama
 void network_task(void *arg)
 {
     char message[256];
@@ -270,7 +270,7 @@ void network_task(void *arg)
 
 void show_led(uint8_t r, uint8_t g, uint8_t b, uint8_t w, rmt_encoder_handle_t *led_encoder, rmt_channel_handle_t *led_chan)
 {
-    // Set the pixel color
+    // Postavi boju piksela
     for (int i = 0; i < NUMBER_OF_LEDS; i++)
     {
         led_strip_pixels[i * 4] = g;
@@ -279,12 +279,12 @@ void show_led(uint8_t r, uint8_t g, uint8_t b, uint8_t w, rmt_encoder_handle_t *
         led_strip_pixels[i * 4 + 3] = w;
     }
 
-    // Configuration for transmitting the LED data
+    // Konfiguracija za slanje LED podataka
     rmt_transmit_config_t tx_config = {
-        .loop_count = 0, // no transfer loop
+        .loop_count = 0, // nema petlje prenosa
     };
 
-    // Send the data to the LEDs
+    // Pošalji podatke LED-ima
     rmt_transmit(*led_chan, *led_encoder, led_strip_pixels, sizeof(led_strip_pixels), &tx_config);
     rmt_tx_wait_all_done(*led_chan, portMAX_DELAY);
 }
@@ -294,17 +294,17 @@ void set_buzzer(bool on)
     gpio_set_level(BUZZER_PIN, on ? 1 : 0);
 }
 
-// Buzzer task that waits for events
+// Zadatak buzzera koji čeka događaje
 void buzzer_task(void *arg)
 {
     while (1)
     {
-        // Check the game state and buzzer state
+        // Provjeri stanje igre i stanje buzzera
         if (game_state == GAME_OFF)
         {
             buzzer_state = BUZZER_OFF;
             set_buzzer(false);
-            end_game_beep_done = false; // Reset the flag when game is off
+            end_game_beep_done = false; // Resetuj zastavicu kada je igra isključena
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
@@ -392,10 +392,10 @@ void set_alternate_color(int index, TeamColor team_color)
 }
 
 /**
- * LED task
- * - If the game is off, turn off the LED
- * - If the game is playing, show the team color as a progress bar (with white background)
- * - If the game is finished, show the winning team color
+ * LED zadatak
+ * - Ako je igra isključena, ugasi LED
+ * - Ako se igra igra (lol), prikaži boju tima kao traku napretka (s bijelom pozadinom)
+ * - Ako je igra završena, prikaži boju pobjedničkog tima
  */
 void led_task(void *arg)
 {
@@ -406,27 +406,27 @@ void led_task(void *arg)
     {
         if (game_state == GAME_OFF)
         {
-            show_led(0, 0, 0, 0, led_encoder, led_chan); // Turn off LED
+            show_led(0, 0, 0, 0, led_encoder, led_chan); // Iskljuciti LED
             vTaskDelay(pdMS_TO_TICKS(100));
             continue;
         }
 
-        // If the game is finished, show the winning team
+        // Ako je igra završena, prikaži pobjedničku boju
         if (game_state == GAME_FINISHED)
         {
             if (team_color == LEFT_RED)
             {
-                show_led(255, 0, 0, 0, led_encoder, led_chan); // Show red
+                show_led(255, 0, 0, 0, led_encoder, led_chan); // Prikazi crvenu boju
             }
             else if (team_color == RIGHT_BLUE)
             {
-                show_led(0, 0, 255, 0, led_encoder, led_chan); // Show blue
+                show_led(0, 0, 255, 0, led_encoder, led_chan); // Prikazi plavu boju
             }
-            vTaskDelay(pdMS_TO_TICKS(100)); // Keep updating at a reasonable rate
-            continue;                       // Continue the loop rather than breaking
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
         }
 
-        // If the game is playing, show the team color as a progress bar
+        // Ako se igra igra, prikaži boju tima kao neki loading bar (s bijelom pozadinom)
         int led_count = (current_game_time * NUMBER_OF_LEDS) / game_time_seconds;
         memset(led_strip_pixels, 0, sizeof(led_strip_pixels));
 
@@ -442,38 +442,37 @@ void led_task(void *arg)
             }
         }
 
-        // Show the LED strip
         rmt_transmit_config_t tx_config = {
-            .loop_count = 0, // no transfer loop
+            .loop_count = 0,
         };
         rmt_transmit(*led_chan, *led_encoder, led_strip_pixels, sizeof(led_strip_pixels), &tx_config);
         rmt_tx_wait_all_done(*led_chan, portMAX_DELAY);
 
-        vTaskDelay(pdMS_TO_TICKS(100)); // Update at higher frequency for smooth progress bar
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
 /**
- * Display task - Updates the SSD1306 OLED display with game status
- * - If game is off: "Press to Start"
- * - If game is playing: Shows timer and current winning team
- * - If game is finished: Shows winner
+ * Display task - Ažurira SSD1306 OLED displej sa statusom igre
+ * - Ako je igra isključena: "Pritisnite za početak"
+ * - Ako se igra igra: Prikazuje timer i trenutno pobjednički tim
+ * - Ako je igra završena: Prikazuje pobjednika
  */
 void display_task(void *arg)
 {
-    // Buffer for display content
+    // Buffer za prikaz sadržaja
     uint8_t bitmap[DISPLAY_WIDTH * DISPLAY_HEIGHT / 8] = {0};
 
     while (1)
     {
-        // Clear the bitmap
+        // Očisti bitmapu
         memset(bitmap, 0, sizeof(bitmap));
 
-        // Create display content based on game state
+        // Napravi sadržaj za prikaz na osnovi stanja igre
         if (game_state == GAME_OFF)
         {
             draw_string(bitmap, 16, 40, "Press to Start");
-            // Show the wifi status
+            // Prikaži status Wi-Fi-ja
             draw_string(bitmap, 50, 10, "Wi-Fi");
             if (check_wifi_status())
             {
@@ -486,9 +485,9 @@ void display_task(void *arg)
         }
         else if (game_state == GAME_PLAYING)
         {
-            // Show timer and current winning team
+            // Prikaži timer i trenutno pobjednički tim
             char status_line[32];
-            // Calculate remaining time for countdown
+            // Izračunaj preostalo vrijeme za brojanje unazad
             int remaining_time = game_time_seconds - current_game_time;
             int hours = remaining_time / 3600;
             int minutes = (remaining_time % 3600) / 60;
@@ -510,14 +509,14 @@ void display_task(void *arg)
             const char *winner_text = (team_color == LEFT_RED) ? "RED" : (team_color == RIGHT_BLUE) ? "BLUE"
                                                                                                     : "NONE";
 
-            // Show currently winning team
+            // Prikaži trenutno pobjednički tim
             char winning_line[32];
             snprintf(winning_line, sizeof(winning_line), "Currently: %s", winner_text);
             draw_string(bitmap, 10, 40, winning_line);
         }
         else if (game_state == GAME_FINISHED)
         {
-            // Show winner
+            // Prikaži pobjednika
             char finish_line[32];
             const char *winner_text = (team_color == LEFT_RED) ? "RED" : (team_color == RIGHT_BLUE) ? "BLUE"
                                                                                                     : "NONE";
@@ -526,15 +525,15 @@ void display_task(void *arg)
             draw_string(bitmap, 10, 30, finish_line);
         }
 
-        // Update the display with our bitmap
+        // Ažuriraj displej sa našom bitmapom
         esp_lcd_panel_draw_bitmap(display_panel, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT, bitmap);
 
-        // Update at a reasonable rate
+        // Ažuriraj na razumnom nivou
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
-// Helper function to format time as a string
+// Pomoćna funkcija za formatiranje vremena kao string
 void format_time(int remaining_time, char *buffer, size_t buffer_size)
 {
     int minutes = remaining_time / 60;
@@ -542,13 +541,13 @@ void format_time(int remaining_time, char *buffer, size_t buffer_size)
     snprintf(buffer, buffer_size, "%02d:%02d", minutes, seconds);
 }
 
-// Button interrupt handler (both buttons)
+// Handler za pritisak tipke (oba tipka)
 void IRAM_ATTR button_isr_handler(void *arg)
 {
-    // Handle button press
+    // Obrada pritisaka tipke
     int pin = (int)arg;
 
-    // If the game is finished, reset the game
+    // Ako je igra završena, resetiraj igru
     if (game_state == GAME_FINISHED)
     {
         game_state = GAME_OFF;
@@ -563,11 +562,11 @@ void IRAM_ATTR button_isr_handler(void *arg)
         return;
     }
 
-    // If the game is stopped, start it and set the team color
+    // Ako je igra isključena, pokreni igru i postavi boju tima
     if (game_state == GAME_OFF)
     {
         game_state = GAME_PLAYING;
-        current_game_time = 0; // Reset the timer when starting
+        current_game_time = 0; // Resetiraj vrijeme kada se pokrene igra
         buzzer_state = BUZZER_SECONDS;
         if (pin == LEFT_BUTTON_PIN)
         {
@@ -585,10 +584,10 @@ void IRAM_ATTR button_isr_handler(void *arg)
         return;
     }
 
-    // Otherwise just set the team color
+    // Inače samo postavi boju tima
     if (game_state == GAME_PLAYING)
     {
-        // Guard statement if the current team hits their own button
+        // Guard statement ako trenutni tim pritisne svoju tipku
         if (team_color == LEFT_RED && pin == LEFT_BUTTON_PIN)
         {
             return;
@@ -606,7 +605,7 @@ void IRAM_ATTR button_isr_handler(void *arg)
         {
             team_color = RIGHT_BLUE;
         }
-        // send_game_data with the current team color
+        // send_game_data sa trenutnom bojom tima
         char message[256];
         char time_buffer[16];
         format_time(game_time_seconds - current_game_time, time_buffer, sizeof(time_buffer));
@@ -616,7 +615,7 @@ void IRAM_ATTR button_isr_handler(void *arg)
     }
 }
 
-// Wi-Fi event handler
+// Handler za Wi-Fi događaje
 static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
@@ -630,7 +629,7 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
     }
 }
 
-// Initialize Wi-Fi
+// Inicijaliziraj Wi-Fi
 void wifi_init(void)
 {
     ESP_ERROR_CHECK(esp_netif_init());
@@ -661,7 +660,7 @@ void wifi_init(void)
 void app_main(void)
 {
 
-    // Reintroduce NVS initialization
+    // Ovo je ukradeno
     esp_err_t nvs_ret = nvs_flash_init();
     if (nvs_ret == ESP_ERR_NVS_NO_FREE_PAGES || nvs_ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
@@ -680,6 +679,8 @@ void app_main(void)
     };
     ESP_ERROR_CHECK(rmt_new_tx_channel(&tx_chan_config, &led_chan));
 
+    // Inicijaliziraj RMT TX kanal za LED traku
+
     ESP_LOGI(TAG, "Install led strip encoder");
     rmt_encoder_handle_t led_encoder = NULL;
     led_strip_encoder_config_t encoder_config = {
@@ -690,7 +691,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Enable RMT TX channel");
     ESP_ERROR_CHECK(rmt_enable(led_chan));
 
-    // Initialize I2C bus for the display
+    // Inicijaliziraj I2C bus za displej
     ESP_LOGI(TAG, "Initialize I2C bus");
     i2c_config_t i2c_conf = {
         .mode = I2C_MODE_MASTER,
@@ -703,7 +704,7 @@ void app_main(void)
     ESP_ERROR_CHECK(i2c_param_config(I2C_HOST, &i2c_conf));
     ESP_ERROR_CHECK(i2c_driver_install(I2C_HOST, I2C_MODE_MASTER, 0, 0, 0));
 
-    // Initialize the SSD1306 display
+    // Inicijaliziraj SSD1306 displej
     ESP_LOGI(TAG, "Initialize SSD1306 display");
     esp_lcd_panel_io_handle_t io_handle = NULL;
     esp_lcd_panel_io_i2c_config_t io_config = {
@@ -724,19 +725,19 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_lcd_panel_init(display_panel));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(display_panel, true));
 
-    // Initialize Wi-Fi
+    // Inicijaliziraj Wi-Fi
     wifi_init();
 
-    // Create the display task
+    // Napravi zadatak za displej
     xTaskCreate(
         display_task,
         "display_task",
-        4096, // Larger stack size for string operations
+        4096, // Veći stack za operacije sa stringovima
         NULL,
         10,
         NULL);
 
-    // Initialize the buzzer GPIO
+    // Inicijaliziraj GPIO za zvonec
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << BUZZER_PIN),
         .mode = GPIO_MODE_OUTPUT,
@@ -746,7 +747,7 @@ void app_main(void)
     };
     gpio_config(&io_conf);
 
-    // Initialize the button GPIOs
+    // Inicijaliziraj GPIO za tipke
     gpio_config_t button_configs = {
         .pin_bit_mask = (1ULL << LEFT_BUTTON_PIN) | (1ULL << RIGHT_BUTTON_PIN),
         .mode = GPIO_MODE_INPUT,
@@ -756,12 +757,12 @@ void app_main(void)
     };
     gpio_config(&button_configs);
 
-    // create a config object for the buzzer task
+    // Napravi objekt za zadatak za zvonce
     LedParams led_params = {
         .led_encoder = &led_encoder,
         .led_chan = &led_chan};
 
-    // Create the buzzer task with a 100ms buzz interval
+    // Napravi zadatak za zvonce s 100ms intervalom
     xTaskCreate(
         (TaskFunction_t)buzzer_task,
         "buzzer_task",
@@ -770,7 +771,7 @@ void app_main(void)
         10,
         NULL);
 
-    // Create the LED task
+    // Napravi zadatak za LED traku
     xTaskCreate(
         (TaskFunction_t)led_task,
         "led_task",
@@ -778,23 +779,23 @@ void app_main(void)
         &led_params,
         10,
         NULL);
-    // Create the network queue and task
+    // Napravi red za mrežu i zadatak
     network_queue = xQueueCreate(QUEUE_SIZE, sizeof(char[256]));
     xTaskCreate(network_task, "network_task", 4096, NULL, 10, NULL);
 
-    // Set up the button interrupt handlers
+    // Postavi upravljače za prekid tipke
     gpio_install_isr_service(0);
     gpio_isr_handler_add(LEFT_BUTTON_PIN, button_isr_handler, (void *)LEFT_BUTTON_PIN);
     gpio_isr_handler_add(RIGHT_BUTTON_PIN, button_isr_handler, (void *)RIGHT_BUTTON_PIN);
 
-    // Clear all pixels first
+    // Očisti sve pixele
     memset(led_strip_pixels, 0, sizeof(led_strip_pixels));
 
-    // Keep the program running
+    // Održavaj program u pokretu
     while (1)
     {
         if (game_state == GAME_PLAYING)
-        { // Fixed using == instead of =
+        {
             if (current_game_time == game_time_seconds / 2)
             {
                 static char halfway_message[256];
